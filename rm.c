@@ -370,7 +370,7 @@ void rm_print_state (char hmsg[])
         }
         printf("\n");
     }
-    printf("\n");
+    printf("#######################\n");
 
     return;
 }
