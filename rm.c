@@ -86,7 +86,7 @@ int rm_init(int p_count, int r_count, int r_exist[],  int avoid)
     int i;
     int ret = 0;
     
-    if( 0 > p_count || p_count > MAXP || 0 < r_count || r_count > MAXR || avoid < 0 || avoid > 1){
+    if( 0 > p_count || p_count > MAXP || 0 > r_count || r_count > MAXR || avoid < 0 || avoid > 1){
         return -1;
     }
 
@@ -109,14 +109,13 @@ int rm_init(int p_count, int r_count, int r_exist[],  int avoid)
         }
     }
     
-    //....
-    // ...
     return  (ret);
 } 
 
 
 int rm_request (int request[])
 {
+    pthread_mutex_lock(&lock);
     int ret = 0;
     int tid = -1;
     int selfId = pthread_self(); 
@@ -128,10 +127,6 @@ int rm_request (int request[])
     if (tid < 0)
         return -1;
  
-    for (int i = 0; i < M; i++){
-        if (request[i] > Need[tid][i])
-            return -1;
-    }
     for (int i = 0; i < M; i++)
         Request[tid][i] = request[i]; 
 
@@ -141,14 +136,22 @@ int rm_request (int request[])
         bool workBigger = true;
         bool safe = true;
 
-        pthread_mutex_lock(&lock);
+        for (int i = 0; i < M; i++){
+            if (request[i] > Need[tid][i]){
+                Request[tid][i] = 0;
+                pthread_mutex_unlock(&lock);
+                return -1;
+            }    
+        }
+
         for (int i = 0; i < M; ++i){
-            while(AvailableRes[i] < request[i])
+            while(AvailableRes[i] < request[i]){
                 pthread_cond_wait(&cvs[tid], &lock);
+            }
 
             Request[tid][i] = 0;
 
-            Allocated[tid][i] = request[i];
+            Allocated[tid][i] += request[i];
             Need[tid][i] -= request[i];
             AvailableRes[i] -= request[i]; 
         }   
@@ -184,12 +187,13 @@ int rm_request (int request[])
                 Need[tid][i] += request[i];
                 AvailableRes[i] += request[i];
             }
+            pthread_mutex_unlock(&lock);
             return -1;
         }
+        pthread_mutex_unlock(&lock);
         return 0;
     }
     else if(DA == 0){
-        pthread_mutex_lock(&lock);
         for (int i = 0; i < M; ++i){
             while(AvailableRes[i] < request[i])
                 pthread_cond_wait(&cvs[tid], &lock);
@@ -201,12 +205,14 @@ int rm_request (int request[])
         }
     }
     
+    pthread_mutex_unlock(&lock);
     return(ret);
 }
 
 
 int rm_release (int release[])
 {
+    pthread_mutex_lock(&lock);
     int ret = 0;
     int tid = -1;
     int selfId = pthread_self();
@@ -215,12 +221,17 @@ int rm_release (int release[])
         if (ProcessingThreads[i] == selfId)
             tid = i;
     }
-    if (tid < 0)
+
+    if (tid < 0){
+        pthread_mutex_unlock(&lock);
         return -1;
+    }
 
     for (int i = 0; i < M; i++){
-        if (release[i] > Allocated[tid][i])
+        if (release[i] > Allocated[tid][i]){
+            pthread_mutex_unlock(&lock);
             return -1;
+        }
     }
 
     for (int i = 0; i < M; ++i){        
@@ -279,7 +290,7 @@ int rm_detection()
     }
     for(int i = 0; i < N; i++){
         if(!finish[i])
-            return i;
+            ret += 1;
     }
     
     return (ret);
@@ -288,10 +299,12 @@ int rm_detection()
 
 void rm_print_state (char hmsg[])
 {
+    pthread_mutex_lock(&lock);
     printf("#######################\n");
-    printf("The current state\n");
+    printf("%s\n", hmsg);
     printf("#######################\n");
     printf("Exist:\n");
+
 
     for(int i = 0; i < M; i++){
         printf("\tR%d", i);
@@ -372,5 +385,6 @@ void rm_print_state (char hmsg[])
     }
     printf("#######################\n");
 
+    pthread_mutex_unlock(&lock);
     return;
 }
