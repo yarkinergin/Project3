@@ -40,6 +40,22 @@ int rm_thread_started(int tid)
 int rm_thread_ended()
 {
     int selfId = pthread_self(); 
+    int tid = -1;
+
+    for (int i = 0; i < N; i++){
+        if (ProcessingThreads[i] == selfId)
+            tid = i;
+    }
+    if (tid < 0){
+        return -1;
+    }
+
+    for(int i = 0; i < M; i++){
+        MaxRes[tid][i] = 0;
+        Need[tid][i] = 0;
+        Allocated[tid][i] = 0;
+    }
+
     for (int i = 0; i < N; i++){
         if (ProcessingThreads[i] == selfId){
             ProcessingThreads[i] = 0;
@@ -105,7 +121,10 @@ int rm_init(int p_count, int r_count, int r_exist[],  int avoid)
         for( int j = 0; j < M; j++){
             Request[i][j] = 0;
             MaxRes[i][j] = 0;
-            Need[i][j] = 0;
+            if(DA == 1)
+                Need[i][j] = -1;
+            else
+                Need[i][j] = 0;
         }
     }
     
@@ -116,9 +135,15 @@ int rm_init(int p_count, int r_count, int r_exist[],  int avoid)
 int rm_request (int request[])
 {
     pthread_mutex_lock(&lock);
+
     int ret = 0;
     int tid = -1;
     int selfId = pthread_self(); 
+    
+    int work[M];
+    bool finish[N];
+    bool safe;
+    bool workBigger;
 
     for (int i = 0; i < N; i++){
         if (ProcessingThreads[i] == selfId)
@@ -126,16 +151,22 @@ int rm_request (int request[])
     }
     if (tid < 0)
         return -1;
+
+    for (int i = 0; i < N; i++){
+        pthread_cond_signal(&cvs[i]);
+    }
+
+    for (int i = 0; i < N; ++i){
+        for (int j = 0; j < M; j++){
+            while(Need[i][j] < 0)
+                pthread_cond_wait(&cvs[tid], &lock);
+        }
+    }
  
     for (int i = 0; i < M; i++)
         Request[tid][i] = request[i]; 
 
     if(DA == 1){
-        int work[M];
-        bool finish[N];
-        bool workBigger = true;
-        bool safe = true;
-
         for (int i = 0; i < M; i++){
             if (request[i] > Need[tid][i]){
                 Request[tid][i] = 0;
@@ -143,55 +174,58 @@ int rm_request (int request[])
                 return -1;
             }    
         }
+        do{
+            safe = true;
+            workBigger = true;
 
-        for (int i = 0; i < M; ++i){
-            while(AvailableRes[i] < request[i]){
-                pthread_cond_wait(&cvs[tid], &lock);
-            }
+            for (int i = 0; i < M; ++i){
+                while(AvailableRes[i] < request[i]){
+                    pthread_cond_wait(&cvs[tid], &lock);
+                }
 
-            Request[tid][i] = 0;
+                Request[tid][i] = 0;
 
-            Allocated[tid][i] += request[i];
-            Need[tid][i] -= request[i];
-            AvailableRes[i] -= request[i]; 
-        }   
+                Allocated[tid][i] += request[i];
+                Need[tid][i] -= request[i];
+                AvailableRes[i] -= request[i]; 
+            }   
 
-        for (int i = 0; i < M; i++)
-            work[i] = AvailableRes[i];
+            for (int i = 0; i < M; i++)
+                work[i] = AvailableRes[i];
 
-        for (int j = 0; j < N; j++)
-            finish[j] = false;
+            for (int j = 0; j < N; j++)
+                finish[j] = false;
 
-        for (int i = 0; i < N; i++){
-            if (finish[i])
-                continue;
+            for (int i = 0; i < N; i++){
+                if (finish[i])
+                    continue;
 
-            for (int j = 0; j < M; j++){
-                if(Need[i][j] > work[j])
-                    workBigger = false;
-            }
-            if( workBigger){
+                for (int j = 0; j < M; j++){
+                    if(Need[i][j] > work[j])
+                        workBigger = false;
+                }
+                if(!workBigger)
+                    continue;
                 for (int j = 0; j < M; j++){
                     work[j] += Allocated[i][j];
                 }
                 finish[i] = true;
             }
-        }
-        for (int i = 0; i < N; i++){
-            if (!finish[i])
-                safe = false;
-        }
-        if (!safe){
-            for (int i = 0; i < M; ++i){
-                Allocated[tid][i] -= request[i];
-                Need[tid][i] += request[i];
-                AvailableRes[i] += request[i];
+            for (int i = 0; i < N; i++){
+                if (!finish[i])
+                    safe = false;
             }
-            pthread_mutex_unlock(&lock);
-            return -1;
-        }
-        pthread_mutex_unlock(&lock);
-        return 0;
+            if (!safe){
+                for (int i = 0; i < M; ++i){
+                    Request[tid][i] = request[i]; 
+
+                    Allocated[tid][i] -= request[i];
+                    Need[tid][i] += request[i];
+                    AvailableRes[i] += request[i];
+                }
+                pthread_cond_wait(&cvs[tid], &lock);
+            }
+        } while(!safe);
     }
     else if(DA == 0){
         for (int i = 0; i < M; ++i){
