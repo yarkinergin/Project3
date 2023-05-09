@@ -174,24 +174,31 @@ int rm_request (int request[])
                 return -1;
             }    
         }
+
+        int tempAvailable[M];
+        int tempNeed[N][M];
+        int tempAllocated[N][M];
+
         do{
             safe = true;
             workBigger = true;
 
-            for (int i = 0; i < M; ++i){
-                while(AvailableRes[i] < request[i]){
-                    pthread_cond_wait(&cvs[tid], &lock);
+            for(int i = 0; i < N; i++){
+                for(int j = 0; j < M; j++){
+                    tempAllocated[i][j] = Allocated[i][j];
+                    tempNeed[i][j] = Need[i][j];
+                    tempAvailable[j] = AvailableRes[j]; 
                 }
+            }
 
-                Request[tid][i] = 0;
-
-                Allocated[tid][i] += request[i];
-                Need[tid][i] -= request[i];
-                AvailableRes[i] -= request[i]; 
+            for (int i = 0; i < M; ++i){
+                tempAllocated[tid][i] += request[i];
+                tempNeed[tid][i] -= request[i];
+                tempAvailable[i] -= request[i]; 
             }   
 
             for (int i = 0; i < M; i++)
-                work[i] = AvailableRes[i];
+                work[i] = tempAvailable[i];
 
             for (int j = 0; j < N; j++)
                 finish[j] = false;
@@ -201,13 +208,13 @@ int rm_request (int request[])
                     continue;
 
                 for (int j = 0; j < M; j++){
-                    if(Need[i][j] > work[j])
+                    if(tempNeed[i][j] > work[j])
                         workBigger = false;
                 }
                 if(!workBigger)
                     continue;
                 for (int j = 0; j < M; j++){
-                    work[j] += Allocated[i][j];
+                    work[j] += tempAllocated[i][j];
                 }
                 finish[i] = true;
             }
@@ -216,14 +223,20 @@ int rm_request (int request[])
                     safe = false;
             }
             if (!safe){
-                for (int i = 0; i < M; ++i){
-                    Request[tid][i] = request[i]; 
-
-                    Allocated[tid][i] -= request[i];
-                    Need[tid][i] += request[i];
-                    AvailableRes[i] += request[i];
-                }
                 pthread_cond_wait(&cvs[tid], &lock);
+            }
+            else{
+                for (int i = 0; i < M; ++i){
+                    while(AvailableRes[i] < request[i]){
+                        pthread_cond_wait(&cvs[tid], &lock);
+                    }
+
+                    Request[tid][i] = 0;
+
+                    Allocated[tid][i] += request[i];
+                    Need[tid][i] -= request[i];
+                    AvailableRes[i] -= request[i]; 
+                } 
             }
         } while(!safe);
     }
