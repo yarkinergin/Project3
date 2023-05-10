@@ -52,13 +52,13 @@ void *threadfunc1 (void *a)
     setarray(claim, NUMR, 3, 2, 4, 5, 3, 3);
     rm_claim (claim);
 
-    setarray(request1, NUMR, 1, 1, 1, 1, 1, 1);     //setarray(request1, NUMR, 2, 2, 2, 2, 1, 1);
+    setarray(request1, NUMR, 2, 2, 2, 2, 1, 1);
     pr (tid, "REQ", NUMR, request1);
     rm_request (request1);
 
     sleep(8);
 
-    setarray(request2, NUMR, 1, 0, 1, 1, 0, 2);
+    setarray(request2, NUMR, 1, 0, 2, 2, 1, 2);
     pr (tid, "REQ", NUMR, request2);
     rm_request (request2);
 
@@ -83,7 +83,7 @@ void *threadfunc2 (void *a)
     setarray(claim, NUMR, 5, 2, 4, 7, 3, 3);
     rm_claim (claim);
 
-    setarray(request1, NUMR, 1, 1, 1, 1, 1, 1);     //setarray(request1, NUMR, 1, 1, 2, 2, 2, 0);
+    setarray(request1, NUMR, 2, 1, 2, 3, 1, 0);
     pr (tid, "REQ", NUMR, request1);
     rm_request (request1);
 
@@ -95,7 +95,7 @@ void *threadfunc2 (void *a)
 
     sleep(6);
 
-    setarray(request3, NUMR, 2, 1, 0, 1, 0, 0);
+    setarray(request3, NUMR, 2, 1, 0, 1, 1, 0);
     pr (tid, "REQ", NUMR, request3);
     rm_request (request3);
 
@@ -120,13 +120,13 @@ void *threadfunc3 (void *a)
     setarray(claim, NUMR, 4, 2, 4, 4, 3, 2);
     rm_claim (claim);
 
-    setarray(request1, NUMR, 1, 1, 1, 1, 1, 1);     //setarray(request1, NUMR, 1, 1, 2, 2, 1, 2);
+    setarray(request1, NUMR, 3, 1, 2, 2, 1, 2);
     pr (tid, "REQ", NUMR, request1);
     rm_request (request1);
 
     sleep(3);
 
-    setarray(request2, NUMR, 3, 0, 0, 1, 1, 0);
+    setarray(request2, NUMR, 1, 0, 0, 1, 2, 0);
     pr (tid, "REQ", NUMR, request2);
     rm_request (request2);
 
@@ -150,13 +150,13 @@ void *threadfunc4 (void *a)
     setarray(claim, NUMR, 5, 2, 4, 7, 3, 5);
     rm_claim (claim);
 
-    setarray(request1, NUMR, 1, 1, 1, 1, 1, 1);     //setarray(request1, NUMR, 2, 1, 1, 2, 1, 3);
+    setarray(request1, NUMR, 2, 1, 2, 3, 2, 2);
     pr (tid, "REQ", NUMR, request1);
     rm_request (request1);
 
     sleep(10);
 
-    setarray(request2, NUMR, 3, 1, 3, 3, 0, 1);
+    setarray(request2, NUMR, 3, 1, 2, 2, 0, 1);
     pr (tid, "REQ", NUMR, request2);
     rm_request (request2);
 
@@ -217,7 +217,10 @@ int main(int argc, char **argv)
         rm_print_state("The current state");
         ret = rm_detection();
         if (ret > 0) {
-            printf ("deadlock detected, count=%d\n", ret);
+            if(AVOID == 1)
+                printf ("deadlock detected, count=%d  (AVOIDING...)\n", ret);
+            else
+                printf ("deadlock detected, count=%d\n", ret);
             rm_print_state("state after deadlock");
         }
         count++;
